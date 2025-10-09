@@ -15,7 +15,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@coral-xyz/anchor": "^0.29.0",
+    "@coral-xyz/anchor": "^0.32.0",
     "@solana/web3.js": "^1.87.6"
   },
   "devDependencies": {
