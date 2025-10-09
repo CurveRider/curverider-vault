@@ -1,0 +1,62 @@
+[package]
+name = "curverider-bot"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Solana Core
+solana-client = "1.18"
+solana-sdk = "1.18"
+solana-account-decoder = "1.18"
+anchor-client = "0.29"
+anchor-lang = "0.29"
+spl-token = "4.0"
+spl-associated-token-account = "2.3"
+
+# Async Runtime
+tokio = { version = "1.35", features = ["full"] }
+futures = "0.3"
+
+# HTTP & WebSocket
+reqwest = { version = "0.11", features = ["json"] }
+tokio-tungstenite = "0.21"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+borsh = "0.10"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Error Handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Configuration
+dotenv = "0.15"
+config = "0.13"
+
+# Utilities
+bs58 = "0.5"
+base64 = "0.21"
+chrono = "0.4"
+uuid = { version = "1.6", features = ["v4"] }
+
+# Math & Statistics
+rust_decimal = "1.33"
+statrs = "0.16"
+
+[dev-dependencies]
+mockito = "1.2"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.dev]
+opt-level = 1

@@ -1,8 +1,20 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Electric Blue & Neon Green Theme */
+  --electric-blue: #0066FF;
+  --deep-blue: #001F3F;
+  --neon-green: #39FF14;
+  --cyber-cyan: #00F0FF;
+  --dark-navy: #0a0e27;
+  --midnight: #050b1f;
+  
+  --background: var(--midnight);
+  --foreground: #ffffff;
+  
+  /* Glass morphism */
+  --glass-bg: rgba(0, 102, 255, 0.05);
+  --glass-border: rgba(0, 240, 255, 0.2);
 }
 
 @theme inline {
@@ -10,17 +22,108 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  
+  /* Custom colors */
+  --color-electric-blue: var(--electric-blue);
+  --color-neon-green: var(--neon-green);
+  --color-cyber-cyan: var(--cyber-cyan);
+  --color-dark-navy: var(--dark-navy);
+  --color-midnight: var(--midnight);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+  overflow-x: hidden;
+}
+
+/* Glassmorphism utility classes */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  box-shadow: 
+    0 8px 32px 0 rgba(0, 240, 255, 0.1),
+    inset 0 0 20px 0 rgba(0, 102, 255, 0.05);
+}
+
+.glass-card {
+  background: rgba(5, 11, 31, 0.6);
+  backdrop-filter: blur(30px);
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  box-shadow: 
+    0 8px 32px 0 rgba(0, 240, 255, 0.2),
+    inset 0 0 40px 0 rgba(57, 255, 20, 0.02);
+  transition: all 0.3s ease;
+}
+
+.glass-card:hover {
+  border-color: rgba(57, 255, 20, 0.5);
+  box-shadow: 
+    0 12px 48px 0 rgba(0, 240, 255, 0.3),
+    inset 0 0 60px 0 rgba(57, 255, 20, 0.05);
+  transform: translateY(-4px);
+}
+
+/* Neon glow effects */
+.neon-glow-blue {
+  text-shadow: 
+    0 0 10px rgba(0, 102, 255, 0.8),
+    0 0 20px rgba(0, 102, 255, 0.6),
+    0 0 30px rgba(0, 102, 255, 0.4);
+}
+
+.neon-glow-green {
+  text-shadow: 
+    0 0 10px rgba(57, 255, 20, 0.8),
+    0 0 20px rgba(57, 255, 20, 0.6),
+    0 0 30px rgba(57, 255, 20, 0.4);
+}
+
+.neon-border {
+  box-shadow: 
+    0 0 10px rgba(0, 240, 255, 0.5),
+    0 0 20px rgba(0, 240, 255, 0.3),
+    inset 0 0 20px rgba(57, 255, 20, 0.1);
+}
+
+/* Animated gradient background */
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animated-gradient {
+  background: linear-gradient(
+    135deg,
+    var(--midnight) 0%,
+    var(--deep-blue) 25%,
+    #001a3d 50%,
+    var(--deep-blue) 75%,
+    var(--midnight) 100%
+  );
+  background-size: 200% 200%;
+  animation: gradient-shift 15s ease infinite;
+}
+
+/* Pulse animation for interactive elements */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(57, 255, 20, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(57, 255, 20, 0.8);
+  }
+}
+
+.pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
 }
