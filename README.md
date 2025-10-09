@@ -3,7 +3,7 @@ A fully autonomous DeFi strategy vault on Solana that profits from pump.fun meta
 
 ## Project Structure
 
-This project consists of two main components:
+This project consists of three main components:
 
 ### 1. Program (`programs/curverider-vault/`)
 The on-chain Anchor smart contract that manages the vault logic.
@@ -20,6 +20,15 @@ The off-chain TypeScript trading bot that interacts with the program.
 - `bot/src/index.ts` - Main bot entry point
 - `bot/package.json` - Node.js dependencies
 - `bot/tsconfig.json` - TypeScript configuration
+
+### 3. Frontend (`frontend/`)
+Next.js TypeScript web interface for the landing page and dApp.
+
+**Key files:**
+- `frontend/app/page.tsx` - Landing page
+- `frontend/app/dapp/page.tsx` - dApp interface
+- `frontend/components/WalletProvider.tsx` - Solana wallet integration
+- `frontend/package.json` - Frontend dependencies
 
 ## Getting Started
 
@@ -38,6 +47,9 @@ npm install
 
 # Install bot dependencies
 cd bot && npm install
+
+# Install frontend dependencies
+cd ../frontend && npm install
 ```
 
 2. Build the program:
@@ -58,12 +70,21 @@ cp .env.example .env
 npm run dev
 ```
 
+5. Run the frontend:
+```bash
+cd frontend
+npm run dev
+# Visit http://localhost:3000
+```
+
 ## Development
 
 - `anchor build` - Build the Solana program
 - `anchor test` - Run program tests
 - `anchor deploy` - Deploy to configured cluster
 - `cd bot && npm run dev` - Run the trading bot in development mode
+- `cd frontend && npm run dev` - Run the frontend in development mode
+- `cd frontend && npm run build` - Build the frontend for production
 
 ## License
 ISC
