@@ -18,7 +18,7 @@ curverider_vault = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "Localnet"
+cluster = "https://api.testnet.solana.com"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
