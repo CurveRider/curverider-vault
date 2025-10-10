@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Token, TokenAccount, Transfer, Mint};
-use anchor_spl::associated_token::AssociatedToken;
+// use anchor_spl::token::{self, Token, TokenAccount, Transfer, Mint};
+// use anchor_spl::associated_token::AssociatedToken;
 
 declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 
@@ -48,26 +48,22 @@ pub mod curverider_vault {
         ctx: Context<Deposit>,
         amount: u64,
     ) -> Result<()> {
-        let vault = &mut ctx.accounts.vault;
-        let user_account = &mut ctx.accounts.user_account;
-        
-        require!(vault.is_active, VaultError::VaultNotActive);
-        require!(amount >= vault.min_deposit, VaultError::BelowMinDeposit);
-        require!(amount <= vault.max_deposit, VaultError::AboveMaxDeposit);
-        
+        // Avoid double mutable/immutable borrow by not holding vault as a mutable reference during CPI
+        require!(ctx.accounts.vault.is_active, VaultError::VaultNotActive);
+        require!(amount >= ctx.accounts.vault.min_deposit, VaultError::BelowMinDeposit);
+        require!(amount <= ctx.accounts.vault.max_deposit, VaultError::AboveMaxDeposit);
+
         // Calculate shares to mint
-        // If first deposit, shares = amount
-        // Otherwise, shares = (amount * total_shares) / total_deposited
-        let shares_to_mint = if vault.total_shares == 0 {
+        let shares_to_mint = if ctx.accounts.vault.total_shares == 0 {
             amount
         } else {
             amount
-                .checked_mul(vault.total_shares)
+                .checked_mul(ctx.accounts.vault.total_shares)
                 .unwrap()
-                .checked_div(vault.total_deposited)
+                .checked_div(ctx.accounts.vault.total_deposited)
                 .unwrap()
         };
-        
+
         // Transfer SOL from user to vault
         let cpi_context = CpiContext::new(
             ctx.accounts.system_program.to_account_info(),
@@ -77,11 +73,15 @@ pub mod curverider_vault {
             },
         );
         anchor_lang::system_program::transfer(cpi_context, amount)?;
-        
+
+        // Now get mutable references
+        let vault = &mut ctx.accounts.vault;
+        let user_account = &mut ctx.accounts.user_account;
+
         // Update vault state
         vault.total_deposited = vault.total_deposited.checked_add(amount).unwrap();
         vault.total_shares = vault.total_shares.checked_add(shares_to_mint).unwrap();
-        
+
         // Initialize or update user account
         if user_account.shares == 0 {
             user_account.owner = ctx.accounts.user.key();
@@ -90,12 +90,12 @@ pub mod curverider_vault {
         }
         user_account.shares = user_account.shares.checked_add(shares_to_mint).unwrap();
         user_account.total_deposited = user_account.total_deposited.checked_add(amount).unwrap();
-        
+
         msg!("💰 Deposit successful!");
         msg!("Amount: {} lamports", amount);
         msg!("Shares minted: {}", shares_to_mint);
         msg!("User total shares: {}", user_account.shares);
-        
+
         Ok(())
     }
 
