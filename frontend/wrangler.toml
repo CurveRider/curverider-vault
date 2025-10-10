@@ -1,0 +1,4 @@
+name = "curverider-frontend"
+compatibility_date = "2025-10-10"
+[site]
+bucket = "./out"
