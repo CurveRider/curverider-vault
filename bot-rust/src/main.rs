@@ -1,3 +1,4 @@
+use solana_sdk::signature::Signer;
 mod error;
 mod types;
 mod config;
@@ -17,7 +18,7 @@ use std::time::Duration;
 use tokio::time;
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> anyhow::Result<()> {
     // Initialize logging
     tracing_subscriber::registry()
         .with(
@@ -40,14 +41,14 @@ async fn main() -> Result<()> {
     info!("🛑 Stop loss: {}%", config.stop_loss_percentage * 100.0);
 
     // Initialize components
-    let scanner = PumpFunScanner::new(config.clone());
+    let scanner = PumpFunScanner::new(&config);
     let analyzer = TokenAnalyzer::new(
         config.min_liquidity_sol,
         config.volume_threshold_sol,
         config.holder_count_min,
         0.3, // max holder concentration
     );
-    let mut trader = Trader::new(config.clone());
+    let mut trader = Trader::new(&config);
 
     info!("✅ Bot initialized successfully");
     info!("🔍 Starting main trading loop...\n");

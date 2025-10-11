@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use solana_sdk::pubkey::Pubkey;
 use std::str::FromStr;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct BotConfig {
     // Solana
     pub rpc_url: String,
@@ -32,11 +32,15 @@ pub struct BotConfig {
 
 impl BotConfig {
     pub fn from_env() -> anyhow::Result<Self> {
-        dotenv::dotenv().ok();
+        dotenv::from_filename("bot-rust/.env").ok();
+        println!("[DEBUG] Environment variables loaded:");
+        for (key, value) in std::env::vars() {
+            println!("[DEBUG] {}={}", key, value);
+        }
 
-        let private_key_str = std::env::var("WALLET_PRIVATE_KEY")?;
-        let private_key_bytes = bs58::decode(private_key_str).into_vec()?;
-        let wallet_keypair = solana_sdk::signature::Keypair::from_bytes(&private_key_bytes)?;
+        let keypair_path = std::env::var("WALLET_KEYPAIR")?;
+        let wallet_keypair = solana_sdk::signature::read_keypair_file(&keypair_path)
+            .map_err(|e| anyhow::anyhow!("Failed to read keypair file: {}", e))?;
 
         let raydium_program_str = std::env::var("RAYDIUM_AMM_PROGRAM")?;
         let raydium_amm_program = Pubkey::from_str(&raydium_program_str)?;

@@ -21,7 +21,7 @@ pub struct Trader {
 }
 
 impl Trader {
-    pub fn new(config: BotConfig) -> Self {
+    pub fn new(config: &BotConfig) -> Self {
         let rpc_client = RpcClient::new_with_commitment(
             config.rpc_url.clone(),
             CommitmentConfig::confirmed(),
@@ -29,7 +29,23 @@ impl Trader {
 
         Self {
             rpc_client,
-            config,
+            config: BotConfig {
+                rpc_url: config.rpc_url.clone(),
+                rpc_ws_url: config.rpc_ws_url.clone(),
+                wallet_keypair: solana_sdk::signature::Keypair::from_bytes(&config.wallet_keypair.to_bytes()).unwrap(),
+                min_liquidity_sol: config.min_liquidity_sol,
+                max_position_size_sol: config.max_position_size_sol,
+                take_profit_multiplier: config.take_profit_multiplier,
+                stop_loss_percentage: config.stop_loss_percentage,
+                pump_fun_api_url: config.pump_fun_api_url.clone(),
+                raydium_amm_program: config.raydium_amm_program,
+                max_slippage_bps: config.max_slippage_bps,
+                max_concurrent_positions: config.max_concurrent_positions,
+                position_timeout_seconds: config.position_timeout_seconds,
+                scan_interval_ms: config.scan_interval_ms,
+                volume_threshold_sol: config.volume_threshold_sol,
+                holder_count_min: config.holder_count_min,
+            },
             positions: Vec::new(),
         }
     }
@@ -109,45 +125,36 @@ impl Trader {
     ) -> Result<f64> {
         info!("💰 Attempting to sell token {}", token_mint);
 
-        // Find position
-        let position = self.positions.iter_mut()
-            .find(|p| &p.token_mint == token_mint && p.status == PositionStatus::Open)
+        // Find position index first to avoid borrow checker issues
+        let pos_index = self.positions.iter().position(|p| &p.token_mint == token_mint && p.status == PositionStatus::Open)
             .ok_or_else(|| BotError::TokenNotFound(token_mint.to_string()))?;
 
-        // Get token account
-        let token_account = self.get_token_account(token_mint)?;
-        let sell_amount = amount.unwrap_or(position.amount);
+        // Get sell_amount before mut borrow
+        let sell_amount = {
+            let position = &self.positions[pos_index];
+            amount.unwrap_or(position.amount)
+        };
 
-        // Check if token graduated to DEX
+        // Get token account and graduation status before mut borrow
+        let token_account = self.get_token_account(token_mint)?;
         let is_graduated = self.check_if_graduated(token_mint).await?;
 
         let transaction = if is_graduated {
-            // Sell on Raydium DEX
             info!("Token graduated - selling on Raydium");
-            self.build_raydium_sell_transaction(
-                token_mint,
-                &token_account,
-                sell_amount,
-            ).await?
+            self.build_raydium_sell_transaction(token_mint, &token_account, sell_amount).await?
         } else {
-            // Sell on pump.fun bonding curve
             info!("Selling on pump.fun bonding curve");
-            self.build_sell_transaction(
-                token_mint,
-                &token_account,
-                sell_amount,
-            ).await?
+            self.build_sell_transaction(token_mint, &token_account, sell_amount).await?
         };
 
-        // Send and confirm
         let signature = self.send_and_confirm_transaction(transaction).await?;
-
-        // Calculate PnL
         let exit_price = self.get_token_price(token_mint).await?;
         let sol_received = (sell_amount as f64 * exit_price) / 1e9;
+
+        // Now update position
+        let position = &mut self.positions[pos_index];
         let pnl = sol_received - position.sol_invested;
         let pnl_percentage = (pnl / position.sol_invested) * 100.0;
-
         position.status = PositionStatus::Closed;
 
         info!(
@@ -162,55 +169,41 @@ impl Trader {
 
     /// Monitor open positions and execute exit strategies
     pub async fn monitor_positions(&mut self) -> Result<()> {
-        for position in self.positions.iter_mut() {
-            if position.status != PositionStatus::Open {
+        // Collect open positions' indices to avoid borrow checker issues
+        let open_indices: Vec<_> = self.positions.iter().enumerate()
+            .filter(|(_, p)| p.status == PositionStatus::Open)
+            .map(|(i, _)| i)
+            .collect();
+
+        for i in open_indices {
+            let (token_mint, take_profit_price, stop_loss_price, entry_time) = {
+                let p = &self.positions[i];
+                (p.token_mint, p.take_profit_price, p.stop_loss_price, p.entry_time)
+            };
+            let current_price = self.get_token_price(&token_mint).await?;
+            let time_elapsed = chrono::Utc::now().timestamp() - entry_time;
+
+            if current_price >= take_profit_price {
+                info!("🎯 Take profit triggered for {}: ${:.6} >= ${:.6}", token_mint, current_price, take_profit_price);
+                self.sell_token(&token_mint, None).await?;
                 continue;
             }
-
-            let current_price = self.get_token_price(&position.token_mint).await?;
-            let time_elapsed = chrono::Utc::now().timestamp() - position.entry_time;
-
-            // Check take profit
-            if current_price >= position.take_profit_price {
-                info!(
-                    "🎯 Take profit triggered for {}: ${:.6} >= ${:.6}",
-                    position.token_mint, current_price, position.take_profit_price
-                );
-                self.sell_token(&position.token_mint, None).await?;
+            if current_price <= stop_loss_price {
+                warn!("🛑 Stop loss triggered for {}: ${:.6} <= ${:.6}", token_mint, current_price, stop_loss_price);
+                self.sell_token(&token_mint, None).await?;
                 continue;
             }
-
-            // Check stop loss
-            if current_price <= position.stop_loss_price {
-                warn!(
-                    "🛑 Stop loss triggered for {}: ${:.6} <= ${:.6}",
-                    position.token_mint, current_price, position.stop_loss_price
-                );
-                self.sell_token(&position.token_mint, None).await?;
-                continue;
-            }
-
-            // Check timeout
             if time_elapsed > self.config.position_timeout_seconds as i64 {
-                warn!(
-                    "⏰ Position timeout for {}: {} seconds elapsed",
-                    position.token_mint, time_elapsed
-                );
-                self.sell_token(&position.token_mint, None).await?;
+                warn!("⏰ Position timeout for {}: {} seconds elapsed", token_mint, time_elapsed);
+                self.sell_token(&token_mint, None).await?;
                 continue;
             }
-
-            // Check if graduated to DEX
-            let is_graduated = self.check_if_graduated(&position.token_mint).await?;
+            let is_graduated = self.check_if_graduated(&token_mint).await?;
             if is_graduated {
-                info!(
-                    "🎓 Token {} graduated to DEX - considering exit",
-                    position.token_mint
-                );
+                info!("🎓 Token {} graduated to DEX - considering exit", token_mint);
                 // Could implement additional logic here
             }
         }
-
         Ok(())
     }
 

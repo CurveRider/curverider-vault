@@ -5,13 +5,13 @@ edition = "2021"
 
 [dependencies]
 # Solana Core
-solana-client = "1.18"
-solana-sdk = "1.18"
-solana-account-decoder = "1.18"
-anchor-client = "0.32"
-anchor-lang = "0.32"
-spl-token = "4.0"
-spl-associated-token-account = "2.3"
+solana-client = "1.16.14"
+solana-sdk = "1.16.14"
+solana-account-decoder = "1.16.14"
+anchor-client = "0.30.0"
+anchor-lang = "0.30.0"
+spl-token = "3.5.0"
+spl-associated-token-account = "1.1.2"
 
 # Async Runtime
 tokio = { version = "1.35", features = ["full"] }

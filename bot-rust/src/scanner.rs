@@ -36,7 +36,7 @@ pub struct PumpFunScanner {
 }
 
 impl PumpFunScanner {
-    pub fn new(config: BotConfig) -> Self {
+    pub fn new(config: &BotConfig) -> Self {
         let client = Client::builder()
             .timeout(Duration::from_secs(10))
             .build()
@@ -45,7 +45,23 @@ impl PumpFunScanner {
         Self {
             client,
             api_url: config.pump_fun_api_url.clone(),
-            config,
+            config: BotConfig {
+                rpc_url: config.rpc_url.clone(),
+                rpc_ws_url: config.rpc_ws_url.clone(),
+                wallet_keypair: solana_sdk::signature::Keypair::from_bytes(&config.wallet_keypair.to_bytes()).unwrap(),
+                min_liquidity_sol: config.min_liquidity_sol,
+                max_position_size_sol: config.max_position_size_sol,
+                take_profit_multiplier: config.take_profit_multiplier,
+                stop_loss_percentage: config.stop_loss_percentage,
+                pump_fun_api_url: config.pump_fun_api_url.clone(),
+                raydium_amm_program: config.raydium_amm_program,
+                max_slippage_bps: config.max_slippage_bps,
+                max_concurrent_positions: config.max_concurrent_positions,
+                position_timeout_seconds: config.position_timeout_seconds,
+                scan_interval_ms: config.scan_interval_ms,
+                volume_threshold_sol: config.volume_threshold_sol,
+                holder_count_min: config.holder_count_min,
+            },
         }
     }
 
