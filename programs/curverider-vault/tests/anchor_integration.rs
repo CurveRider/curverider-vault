@@ -19,25 +19,26 @@ use std::str::FromStr;
 async fn test_vault_initialization() {
     // Setup test context
     let program_id = Pubkey::from_str("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS").unwrap();
-    let mut program_test = ProgramTest::new(
+    let mut program_test = ProgramTest::default();
+    program_test.add_program(
         "curverider_vault",
         program_id,
-        processor!(curverider_vault::entry),
+        None, // Anchor handles the entrypoint automatically
     );
     // TODO: Add vault account creation and initialization logic
-    // assert!(vault_account.is_initialized());
+    todo!("vault account creation and initialization test not yet implemented");
 }
 
 #[tokio::test]
 async fn test_deposit_withdraw() {
     // TODO: Simulate deposit and withdrawal, check balances and shares
-    // assert_eq!(user_shares, expected_shares);
+    todo!("deposit and withdraw test not yet implemented");
 }
 
 #[tokio::test]
 async fn test_trading_logic() {
     // TODO: Simulate opening and closing a position, check vault stats
-    // assert!(position.status == PositionStatus::Closed);
+    todo!("trading logic test not yet implemented");
 }
 
 #[tokio::test]
