@@ -8,11 +8,13 @@ import Link from 'next/link';
 import { gsap } from 'gsap';
 import Hero3D from '@/components/Hero3D';
 import GlowButton from '@/components/GlowButton';
+import StrategySelector, { StrategyType } from '@/components/StrategySelector';
 
 export default function DAppPage() {
   const { connection } = useConnection();
   const { publicKey } = useWallet();
   const [balance, setBalance] = useState<number | null>(null);
+  const [selectedStrategy, setSelectedStrategy] = useState<StrategyType>('conservative');
   const pageRef = useRef<HTMLDivElement>(null);
   const cardsRef = useRef<HTMLDivElement>(null);
 
@@ -139,6 +141,12 @@ export default function DAppPage() {
                   </button>
                 </div>
               </div>
+
+              {/* Strategy Selector */}
+              <StrategySelector
+                selectedStrategy={selectedStrategy}
+                onStrategyChange={setSelectedStrategy}
+              />
 
               {/* Recent Activity */}
               <div className="glass-card rounded-2xl p-8 animate-card">

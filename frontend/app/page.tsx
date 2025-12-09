@@ -88,15 +88,52 @@ export default function Home() {
             </span>
           </h2>
           
-          <p 
+          <p
             ref={subtitleRef}
             className="text-xl md:text-2xl text-gray-300 mb-8 max-w-3xl leading-relaxed"
           >
-            Profit from <span className="text-[#39FF14] font-bold">pump.fun</span> meta with fully autonomous{' '}
-            <span className="text-[#00F0FF] font-bold">token discovery</span>,{' '}
-            <span className="text-[#0066FF] font-bold">sniping</span>, and{' '}
-            <span className="text-[#39FF14] font-bold">trading</span>
+            Profit from <span className="text-[#39FF14] font-bold">pump.fun</span> meme coins with{' '}
+            <span className="text-[#00F0FF] font-bold">4 powerful trading strategies</span> - from{' '}
+            <span className="text-[#0066FF] font-bold">conservative multi-factor</span> to{' '}
+            <span className="text-[#FF0066] font-bold">ultra-early sniping</span>
           </p>
+
+          {/* Strategies Grid */}
+          <div className="mt-16 w-full">
+            <h3 className="text-3xl font-bold mb-8 bg-gradient-to-r from-[#0066FF] to-[#00F0FF] bg-clip-text text-transparent">
+              🎯 Four Strategies, Every Stage
+            </h3>
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <AnimatedCard
+                icon="⚖️"
+                title="Conservative"
+                description="Balanced multi-factor analysis. 2x returns, 60-70% win rate, 1hr holds. Default strategy for consistent profits."
+                delay={0.2}
+                highlight="Medium Risk"
+              />
+              <AnimatedCard
+                icon="🎯"
+                title="Ultra-Early Sniper"
+                description="Catch tokens in first 5 minutes. 3-10x moonshot potential, <10% bonding curve. High risk, high reward."
+                delay={0.4}
+                highlight="Very High Risk"
+              />
+              <AnimatedCard
+                icon="⚡"
+                title="Momentum Scalper"
+                description="Ride explosive momentum waves. 1.5x quick flips in 30min with trailing stops. Active trading style."
+                delay={0.6}
+                highlight="High Risk"
+              />
+              <AnimatedCard
+                icon="🎓"
+                title="Graduation"
+                description="Position before DEX migration. 1.8x steady gains, 70-80% win rate. Lowest risk, patient approach."
+                delay={0.8}
+                highlight="Low Risk"
+              />
+            </div>
+          </div>
 
           {/* Feature Cards */}
           <div className="grid md:grid-cols-3 gap-8 mt-16 w-full">
@@ -104,19 +141,19 @@ export default function Home() {
               icon="🔍"
               title="Token Discovery"
               description="AI-powered scanning of pump.fun to identify high-potential tokens before they trend"
-              delay={0.2}
+              delay={1.0}
             />
             <AnimatedCard
               icon="⚡"
-              title="Smart Sniping"
-              description="Lightning-fast execution to snipe tokens at optimal entry points on the bonding curve"
-              delay={0.4}
+              title="Smart Execution"
+              description="Lightning-fast execution optimized for each strategy's entry and exit parameters"
+              delay={1.2}
             />
             <AnimatedCard
-              icon="📈"
-              title="Auto Trading"
-              description="Automated profit-taking and stop-loss strategies when tokens graduate to DEX"
-              delay={0.6}
+              icon="📊"
+              title="Portfolio Diversification"
+              description="Run multiple strategies simultaneously with automated capital allocation and risk management"
+              delay={1.4}
             />
           </div>
 
