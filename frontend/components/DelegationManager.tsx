@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
-import { PublicKey, SystemProgram, Transaction } from '@solana/web3.js';
-import { Program, AnchorProvider, web3 } from '@project-serum/anchor';
+import { PublicKey } from '@solana/web3.js';
 import { botApi, Strategy } from '@/lib/botApi';
 import GlowButton from './GlowButton';
 
