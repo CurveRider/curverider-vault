@@ -28,6 +28,9 @@ pub struct BotConfig {
     pub scan_interval_ms: u64,
     pub volume_threshold_sol: f64,
     pub holder_count_min: u32,
+
+    // Strategy Selection
+    pub strategy_type: StrategyType,
 }
 
 impl BotConfig {
@@ -87,6 +90,10 @@ impl BotConfig {
                 .parse()?,
             holder_count_min: std::env::var("HOLDER_COUNT_MIN")
                 .unwrap_or_else(|_| "50".to_string())
+                .parse()?,
+
+            strategy_type: std::env::var("STRATEGY_TYPE")
+                .unwrap_or_else(|_| "conservative".to_string())
                 .parse()?,
         })
     }
@@ -171,4 +178,44 @@ pub enum PositionStatus {
     Open,
     Closed,
     Monitoring,
+}
+
+/// Strategy configuration for multi-strategy support
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum StrategyType {
+    Conservative,      // Original multi-factor strategy (default)
+    UltraEarlySniper, // High risk, first 5 minutes, 10-100x targets
+    MomentumScalper,  // Quick flips on explosive momentum
+    GraduationAnticipator, // Pre-DEX positioning, lower risk
+}
+
+impl Default for StrategyType {
+    fn default() -> Self {
+        StrategyType::Conservative
+    }
+}
+
+impl std::str::FromStr for StrategyType {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "conservative" => Ok(StrategyType::Conservative),
+            "ultra_early_sniper" | "ultra-early-sniper" | "early" => Ok(StrategyType::UltraEarlySniper),
+            "momentum_scalper" | "momentum-scalper" | "momentum" => Ok(StrategyType::MomentumScalper),
+            "graduation_anticipator" | "graduation-anticipator" | "graduation" => Ok(StrategyType::GraduationAnticipator),
+            _ => Err(anyhow::anyhow!("Unknown strategy type: {}", s)),
+        }
+    }
+}
+
+/// Strategy-specific exit parameters
+#[derive(Debug, Clone)]
+pub struct StrategyExitParams {
+    pub take_profit_multiplier: f64,
+    pub stop_loss_percentage: f64,
+    pub position_timeout_seconds: u64,
+    pub use_trailing_stop: bool,
+    pub trailing_activation_pct: f64,
+    pub trailing_distance_pct: f64,
 }

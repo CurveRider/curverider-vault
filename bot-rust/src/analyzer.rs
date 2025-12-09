@@ -1,8 +1,15 @@
-use crate::types::{TokenMetrics, TradingSignal, SignalType};
+use crate::types::{TokenMetrics, TradingSignal, SignalType, StrategyType, StrategyExitParams};
 use crate::error::Result;
 use tracing::{info, warn, debug};
 
-/// Advanced Multi-Factor Token Analysis
+/// Trading Strategy Trait - All strategies must implement this
+pub trait TradingStrategy: Send + Sync {
+    fn analyze(&self, metrics: &TokenMetrics) -> Result<TradingSignal>;
+    fn get_exit_params(&self) -> StrategyExitParams;
+    fn name(&self) -> &str;
+}
+
+/// Advanced Multi-Factor Token Analysis (Conservative Strategy)
 /// Based on 7 years of DeFi trading expertise
 pub struct TokenAnalyzer {
     // Configurable thresholds
@@ -338,6 +345,559 @@ impl TokenAnalyzer {
         };
 
         (price_volatility + volume_volatility) / 2.0
+    }
+}
+
+/// Implement TradingStrategy trait for TokenAnalyzer (Conservative Strategy)
+impl TradingStrategy for TokenAnalyzer {
+    fn analyze(&self, metrics: &TokenMetrics) -> Result<TradingSignal> {
+        TokenAnalyzer::analyze(self, metrics)
+    }
+
+    fn get_exit_params(&self) -> StrategyExitParams {
+        StrategyExitParams {
+            take_profit_multiplier: 2.0,
+            stop_loss_percentage: 0.5,
+            position_timeout_seconds: 3600,
+            use_trailing_stop: false,
+            trailing_activation_pct: 0.0,
+            trailing_distance_pct: 0.0,
+        }
+    }
+
+    fn name(&self) -> &str {
+        "Conservative Multi-Factor"
+    }
+}
+
+// ============================================================================
+// STRATEGY 1: ULTRA-EARLY SNIPER
+// High Risk, High Reward - First 5 Minutes
+// ============================================================================
+
+pub struct UltraEarlySniper {
+    min_liquidity: f64,
+}
+
+impl UltraEarlySniper {
+    pub fn new() -> Self {
+        Self {
+            min_liquidity: 1.0, // Accept low liquidity for ultra-early
+        }
+    }
+
+    fn analyze_impl(&self, metrics: &TokenMetrics) -> Result<TradingSignal> {
+        let mut score = 0.0;
+        let mut max_score = 0.0;
+        let mut reasoning = Vec::new();
+
+        // CRITICAL: Must be ultra-early (< 5 minutes old)
+        if metrics.time_since_creation > 300 {
+            return Ok(TradingSignal {
+                token_mint: metrics.mint.parse().unwrap(),
+                signal_type: SignalType::Hold,
+                confidence: 0.0,
+                reasoning: vec!["Too old for ultra-early strategy (>5min)".to_string()],
+                timestamp: chrono::Utc::now().timestamp(),
+            });
+        }
+
+        // CRITICAL: Must be very early bonding curve (< 10%)
+        if metrics.bonding_curve_progress > 10.0 {
+            return Ok(TradingSignal {
+                token_mint: metrics.mint.parse().unwrap(),
+                signal_type: SignalType::Hold,
+                confidence: 0.0,
+                reasoning: vec!["Bonding curve too advanced for ultra-early (>10%)".to_string()],
+                timestamp: chrono::Utc::now().timestamp(),
+            });
+        }
+
+        // Factor 1: Buy Pressure (35% weight) - MOST IMPORTANT
+        let pressure_ratio = if metrics.sell_pressure > 0.0 {
+            metrics.buy_pressure / metrics.sell_pressure
+        } else {
+            metrics.buy_pressure
+        };
+
+        if pressure_ratio > 10.0 {
+            score += 1.0 * 0.35;
+            reasoning.push(format!("EXCEPTIONAL buy pressure: {:.1}:1 ratio", pressure_ratio));
+        } else if pressure_ratio > 5.0 {
+            score += 0.8 * 0.35;
+            reasoning.push(format!("Dominant buy pressure: {:.1}:1 ratio", pressure_ratio));
+        } else if pressure_ratio > 3.0 {
+            score += 0.5 * 0.35;
+            reasoning.push(format!("Strong buy pressure: {:.1}:1 ratio", pressure_ratio));
+        } else {
+            reasoning.push(format!("Weak buy pressure: {:.1}:1 (risky)", pressure_ratio));
+        }
+        max_score += 0.35;
+
+        // Factor 2: Volume Acceleration (30% weight)
+        let volume_acceleration = if metrics.volume_5m > 0.0 && metrics.volume_1h > 0.0 {
+            (metrics.volume_5m * 12.0) / metrics.volume_1h
+        } else {
+            1.0
+        };
+
+        if volume_acceleration > 5.0 {
+            score += 1.0 * 0.30;
+            reasoning.push(format!("EXPLOSIVE volume acceleration: {:.1}x", volume_acceleration));
+        } else if volume_acceleration > 3.0 {
+            score += 0.8 * 0.30;
+            reasoning.push(format!("Strong volume acceleration: {:.1}x", volume_acceleration));
+        } else if volume_acceleration > 1.5 {
+            score += 0.5 * 0.30;
+            reasoning.push(format!("Good volume acceleration: {:.1}x", volume_acceleration));
+        } else {
+            reasoning.push(format!("Low volume acceleration: {:.1}x", volume_acceleration));
+        }
+        max_score += 0.30;
+
+        // Factor 3: Price Momentum 5m (20% weight)
+        if metrics.price_change_5m > 0.50 {
+            score += 1.0 * 0.20;
+            reasoning.push(format!("EXPLOSIVE 5m momentum: +{:.1}%", metrics.price_change_5m * 100.0));
+        } else if metrics.price_change_5m > 0.30 {
+            score += 0.8 * 0.20;
+            reasoning.push(format!("Strong 5m momentum: +{:.1}%", metrics.price_change_5m * 100.0));
+        } else if metrics.price_change_5m > 0.15 {
+            score += 0.5 * 0.20;
+            reasoning.push(format!("Good 5m momentum: +{:.1}%", metrics.price_change_5m * 100.0));
+        } else {
+            reasoning.push(format!("Weak 5m momentum: +{:.1}%", metrics.price_change_5m * 100.0));
+        }
+        max_score += 0.20;
+
+        // Factor 4: Holder Growth (10% weight)
+        if metrics.unique_buyers_5m > 50 {
+            score += 1.0 * 0.10;
+            reasoning.push(format!("Viral growth: {} new buyers in 5m", metrics.unique_buyers_5m));
+        } else if metrics.unique_buyers_5m > 30 {
+            score += 0.7 * 0.10;
+            reasoning.push(format!("Strong growth: {} new buyers", metrics.unique_buyers_5m));
+        } else if metrics.unique_buyers_5m > 20 {
+            score += 0.4 * 0.10;
+            reasoning.push(format!("Good growth: {} new buyers", metrics.unique_buyers_5m));
+        }
+        max_score += 0.10;
+
+        // Factor 5: Minimal Liquidity Check (5% weight)
+        if metrics.liquidity_sol > self.min_liquidity * 3.0 {
+            score += 1.0 * 0.05;
+            reasoning.push(format!("Good early liquidity: {:.1} SOL", metrics.liquidity_sol));
+        } else if metrics.liquidity_sol > self.min_liquidity {
+            score += 0.5 * 0.05;
+            reasoning.push(format!("Adequate liquidity: {:.1} SOL", metrics.liquidity_sol));
+        } else {
+            reasoning.push(format!("Very low liquidity: {:.1} SOL (high risk)", metrics.liquidity_sol));
+        }
+        max_score += 0.05;
+
+        // Normalize confidence
+        let confidence = score / max_score;
+
+        // Determine signal type - AGGRESSIVE thresholds
+        let signal_type = if confidence >= 0.75 {
+            SignalType::StrongBuy
+        } else if confidence >= 0.60 {
+            SignalType::Buy
+        } else if confidence >= 0.40 {
+            SignalType::Hold
+        } else {
+            SignalType::Sell
+        };
+
+        info!(
+            "[ULTRA-EARLY SNIPER] {} analyzed: confidence={:.1}%, age={}s, curve={:.1}%, signal={:?}",
+            metrics.symbol,
+            confidence * 100.0,
+            metrics.time_since_creation,
+            metrics.bonding_curve_progress,
+            signal_type
+        );
+
+        Ok(TradingSignal {
+            token_mint: metrics.mint.parse().unwrap(),
+            signal_type,
+            confidence,
+            reasoning,
+            timestamp: chrono::Utc::now().timestamp(),
+        })
+    }
+}
+
+impl TradingStrategy for UltraEarlySniper {
+    fn analyze(&self, metrics: &TokenMetrics) -> Result<TradingSignal> {
+        self.analyze_impl(metrics)
+    }
+
+    fn get_exit_params(&self) -> StrategyExitParams {
+        StrategyExitParams {
+            take_profit_multiplier: 3.0,  // Aggressive 3x target
+            stop_loss_percentage: 0.30,    // Tight 30% SL
+            position_timeout_seconds: 600, // 10 minutes max
+            use_trailing_stop: false,
+            trailing_activation_pct: 0.0,
+            trailing_distance_pct: 0.0,
+        }
+    }
+
+    fn name(&self) -> &str {
+        "Ultra-Early Sniper (High Risk)"
+    }
+}
+
+// ============================================================================
+// STRATEGY 2: MOMENTUM SCALPER
+// Quick Flips - 15-30 Minute Holds
+// ============================================================================
+
+pub struct MomentumScalper {
+    min_liquidity: f64,
+    min_volume_5m: f64,
+}
+
+impl MomentumScalper {
+    pub fn new() -> Self {
+        Self {
+            min_liquidity: 8.0,  // Need exit liquidity
+            min_volume_5m: 20.0, // Need strong volume
+        }
+    }
+
+    fn analyze_impl(&self, metrics: &TokenMetrics) -> Result<TradingSignal> {
+        let mut score = 0.0;
+        let mut max_score = 0.0;
+        let mut reasoning = Vec::new();
+
+        // Must be in sweet spot for momentum (40-80% bonding curve)
+        if metrics.bonding_curve_progress < 40.0 || metrics.bonding_curve_progress > 80.0 {
+            return Ok(TradingSignal {
+                token_mint: metrics.mint.parse().unwrap(),
+                signal_type: SignalType::Hold,
+                confidence: 0.0,
+                reasoning: vec![format!("Bonding curve {:.1}% outside momentum zone (40-80%)", metrics.bonding_curve_progress)],
+                timestamp: chrono::Utc::now().timestamp(),
+            });
+        }
+
+        // Factor 1: Price Momentum (40% weight) - MOST IMPORTANT
+        let momentum_score = if metrics.price_change_1h > 1.0 {
+            1.0
+        } else if metrics.price_change_1h > 0.75 {
+            0.9
+        } else if metrics.price_change_1h > 0.50 {
+            0.7
+        } else if metrics.price_change_1h > 0.30 {
+            0.4
+        } else {
+            0.0
+        };
+
+        score += momentum_score * 0.40;
+        max_score += 0.40;
+
+        if metrics.price_change_1h > 0.50 {
+            reasoning.push(format!("EXPLOSIVE 1h growth: +{:.1}%", metrics.price_change_1h * 100.0));
+        } else {
+            reasoning.push(format!("Weak 1h momentum: +{:.1}%", metrics.price_change_1h * 100.0));
+        }
+
+        // 5m momentum continuation
+        if metrics.price_change_5m > 0.20 {
+            score += 0.5 * 0.40;
+            reasoning.push(format!("Strong 5m continuation: +{:.1}%", metrics.price_change_5m * 100.0));
+        } else if metrics.price_change_5m > 0.10 {
+            score += 0.3 * 0.40;
+            reasoning.push(format!("Good 5m momentum: +{:.1}%", metrics.price_change_5m * 100.0));
+        }
+
+        // Factor 2: Volume Analysis (30% weight)
+        let volume_score = if metrics.volume_5m > self.min_volume_5m * 3.0 {
+            1.0
+        } else if metrics.volume_5m > self.min_volume_5m * 2.0 {
+            0.7
+        } else if metrics.volume_5m > self.min_volume_5m {
+            0.4
+        } else {
+            0.0
+        };
+
+        score += volume_score * 0.30;
+        max_score += 0.30;
+        reasoning.push(format!("5m volume: {:.1} SOL", metrics.volume_5m));
+
+        // Factor 3: Buy Pressure (20% weight)
+        let pressure_ratio = if metrics.sell_pressure > 0.0 {
+            metrics.buy_pressure / metrics.sell_pressure
+        } else {
+            metrics.buy_pressure
+        };
+
+        if pressure_ratio > 3.0 {
+            score += 1.0 * 0.20;
+            reasoning.push(format!("Dominant buy pressure: {:.1}:1", pressure_ratio));
+        } else if pressure_ratio > 2.0 {
+            score += 0.7 * 0.20;
+            reasoning.push(format!("Strong buy pressure: {:.1}:1", pressure_ratio));
+        } else if pressure_ratio > 1.5 {
+            score += 0.4 * 0.20;
+            reasoning.push(format!("Positive pressure: {:.1}:1", pressure_ratio));
+        }
+        max_score += 0.20;
+
+        // Factor 4: Liquidity (10% weight)
+        if metrics.liquidity_sol > self.min_liquidity * 2.0 {
+            score += 1.0 * 0.10;
+            reasoning.push(format!("Excellent liquidity: {:.1} SOL", metrics.liquidity_sol));
+        } else if metrics.liquidity_sol > self.min_liquidity {
+            score += 0.5 * 0.10;
+            reasoning.push(format!("Good liquidity: {:.1} SOL", metrics.liquidity_sol));
+        } else {
+            reasoning.push(format!("Low liquidity: {:.1} SOL (risky exit)", metrics.liquidity_sol));
+        }
+        max_score += 0.10;
+
+        // Normalize confidence
+        let confidence = score / max_score;
+
+        // Determine signal type
+        let signal_type = if confidence >= 0.75 {
+            SignalType::StrongBuy
+        } else if confidence >= 0.60 {
+            SignalType::Buy
+        } else if confidence >= 0.45 {
+            SignalType::Hold
+        } else {
+            SignalType::Sell
+        };
+
+        info!(
+            "[MOMENTUM SCALPER] {} analyzed: confidence={:.1}%, 1h_change=+{:.1}%, signal={:?}",
+            metrics.symbol,
+            confidence * 100.0,
+            metrics.price_change_1h * 100.0,
+            signal_type
+        );
+
+        Ok(TradingSignal {
+            token_mint: metrics.mint.parse().unwrap(),
+            signal_type,
+            confidence,
+            reasoning,
+            timestamp: chrono::Utc::now().timestamp(),
+        })
+    }
+}
+
+impl TradingStrategy for MomentumScalper {
+    fn analyze(&self, metrics: &TokenMetrics) -> Result<TradingSignal> {
+        self.analyze_impl(metrics)
+    }
+
+    fn get_exit_params(&self) -> StrategyExitParams {
+        StrategyExitParams {
+            take_profit_multiplier: 1.5,   // Quick 1.5x scalp
+            stop_loss_percentage: 0.25,     // 25% SL
+            position_timeout_seconds: 1800, // 30 minutes
+            use_trailing_stop: true,        // Use trailing stop
+            trailing_activation_pct: 0.20,  // Activate at +20%
+            trailing_distance_pct: 0.10,    // Trail by 10%
+        }
+    }
+
+    fn name(&self) -> &str {
+        "Momentum Scalper (Quick Flips)"
+    }
+}
+
+// ============================================================================
+// STRATEGY 3: GRADUATION ANTICIPATOR
+// Pre-DEX Positioning - Low Risk, High Success Rate
+// ============================================================================
+
+pub struct GraduationAnticipator {
+    min_liquidity: f64,
+    min_holder_count: u32,
+    max_holder_concentration: f64,
+}
+
+impl GraduationAnticipator {
+    pub fn new() -> Self {
+        Self {
+            min_liquidity: 15.0,            // Need strong DEX migration liquidity
+            min_holder_count: 100,          // Established community
+            max_holder_concentration: 0.25, // Well distributed
+        }
+    }
+
+    fn analyze_impl(&self, metrics: &TokenMetrics) -> Result<TradingSignal> {
+        let mut score = 0.0;
+        let mut max_score = 0.0;
+        let mut reasoning = Vec::new();
+
+        // Must be in graduation zone (60-85% bonding curve)
+        if metrics.bonding_curve_progress < 60.0 || metrics.bonding_curve_progress > 85.0 {
+            return Ok(TradingSignal {
+                token_mint: metrics.mint.parse().unwrap(),
+                signal_type: SignalType::Hold,
+                confidence: 0.0,
+                reasoning: vec![format!("Bonding curve {:.1}% outside graduation zone (60-85%)", metrics.bonding_curve_progress)],
+                timestamp: chrono::Utc::now().timestamp(),
+            });
+        }
+
+        // Already graduated? Skip
+        if metrics.is_graduated {
+            return Ok(TradingSignal {
+                token_mint: metrics.mint.parse().unwrap(),
+                signal_type: SignalType::Hold,
+                confidence: 0.0,
+                reasoning: vec!["Already graduated to DEX".to_string()],
+                timestamp: chrono::Utc::now().timestamp(),
+            });
+        }
+
+        // Factor 1: Bonding Curve Progress (30% weight)
+        let curve_score = if metrics.bonding_curve_progress >= 70.0 && metrics.bonding_curve_progress <= 80.0 {
+            1.0 // Sweet spot
+        } else if metrics.bonding_curve_progress >= 65.0 && metrics.bonding_curve_progress < 85.0 {
+            0.8
+        } else {
+            0.5
+        };
+
+        score += curve_score * 0.30;
+        max_score += 0.30;
+        reasoning.push(format!("Near graduation: {:.1}% bonding curve", metrics.bonding_curve_progress));
+
+        // Factor 2: Liquidity (25% weight)
+        if metrics.liquidity_sol > self.min_liquidity * 2.0 {
+            score += 1.0 * 0.25;
+            reasoning.push(format!("Excellent DEX-ready liquidity: {:.1} SOL", metrics.liquidity_sol));
+        } else if metrics.liquidity_sol > self.min_liquidity * 1.5 {
+            score += 0.7 * 0.25;
+            reasoning.push(format!("Strong liquidity: {:.1} SOL", metrics.liquidity_sol));
+        } else if metrics.liquidity_sol > self.min_liquidity {
+            score += 0.4 * 0.25;
+            reasoning.push(format!("Adequate liquidity: {:.1} SOL", metrics.liquidity_sol));
+        } else {
+            reasoning.push(format!("Low liquidity: {:.1} SOL (risky)", metrics.liquidity_sol));
+        }
+        max_score += 0.25;
+
+        // Factor 3: Holder Distribution (20% weight)
+        if metrics.holder_count > self.min_holder_count * 2 {
+            score += 0.5 * 0.20;
+            reasoning.push(format!("Strong community: {} holders", metrics.holder_count));
+        } else if metrics.holder_count > self.min_holder_count {
+            score += 0.3 * 0.20;
+            reasoning.push(format!("Good holder base: {} holders", metrics.holder_count));
+        } else {
+            reasoning.push(format!("Weak holder count: {}", metrics.holder_count));
+        }
+
+        if metrics.holder_concentration < self.max_holder_concentration * 0.6 {
+            score += 0.5 * 0.20;
+            reasoning.push(format!("Well distributed: {:.1}% concentration", metrics.holder_concentration * 100.0));
+        } else if metrics.holder_concentration < self.max_holder_concentration {
+            score += 0.3 * 0.20;
+            reasoning.push(format!("Acceptable distribution: {:.1}%", metrics.holder_concentration * 100.0));
+        } else {
+            reasoning.push(format!("High concentration risk: {:.1}%", metrics.holder_concentration * 100.0));
+        }
+        max_score += 0.20;
+
+        // Factor 4: Volume Sustained (15% weight)
+        if metrics.volume_24h > 100.0 {
+            score += 1.0 * 0.15;
+            reasoning.push(format!("Exceptional 24h volume: {:.1} SOL", metrics.volume_24h));
+        } else if metrics.volume_24h > 50.0 {
+            score += 0.7 * 0.15;
+            reasoning.push(format!("Strong 24h volume: {:.1} SOL", metrics.volume_24h));
+        } else if metrics.volume_24h > 25.0 {
+            score += 0.4 * 0.15;
+            reasoning.push(format!("Good sustained volume: {:.1} SOL", metrics.volume_24h));
+        }
+        max_score += 0.15;
+
+        // Factor 5: Price Stability (10% weight)
+        let volatility = (metrics.price_change_5m.abs() + metrics.price_change_1h.abs()) / 2.0;
+
+        if volatility < 0.20 {
+            score += 1.0 * 0.10;
+            reasoning.push("Stable price action (low volatility)".to_string());
+        } else if volatility < 0.40 {
+            score += 0.6 * 0.10;
+            reasoning.push("Moderate volatility".to_string());
+        } else {
+            reasoning.push("High volatility (risky)".to_string());
+        }
+        max_score += 0.10;
+
+        // Normalize confidence
+        let confidence = score / max_score;
+
+        // Determine signal type - Conservative thresholds
+        let signal_type = if confidence >= 0.75 {
+            SignalType::StrongBuy
+        } else if confidence >= 0.60 {
+            SignalType::Buy
+        } else if confidence >= 0.45 {
+            SignalType::Hold
+        } else {
+            SignalType::Sell
+        };
+
+        info!(
+            "[GRADUATION ANTICIPATOR] {} analyzed: confidence={:.1}%, curve={:.1}%, holders={}, signal={:?}",
+            metrics.symbol,
+            confidence * 100.0,
+            metrics.bonding_curve_progress,
+            metrics.holder_count,
+            signal_type
+        );
+
+        Ok(TradingSignal {
+            token_mint: metrics.mint.parse().unwrap(),
+            signal_type,
+            confidence,
+            reasoning,
+            timestamp: chrono::Utc::now().timestamp(),
+        })
+    }
+}
+
+impl TradingStrategy for GraduationAnticipator {
+    fn analyze(&self, metrics: &TokenMetrics) -> Result<TradingSignal> {
+        self.analyze_impl(metrics)
+    }
+
+    fn get_exit_params(&self) -> StrategyExitParams {
+        StrategyExitParams {
+            take_profit_multiplier: 1.8,    // Conservative 1.8x
+            stop_loss_percentage: 0.35,      // Wider 35% SL
+            position_timeout_seconds: 7200,  // 2 hours
+            use_trailing_stop: false,
+            trailing_activation_pct: 0.0,
+            trailing_distance_pct: 0.0,
+        }
+    }
+
+    fn name(&self) -> &str {
+        "Graduation Anticipator (Low Risk)"
+    }
+}
+
+/// Factory function to create strategy based on type
+pub fn create_strategy(strategy_type: StrategyType) -> Box<dyn TradingStrategy> {
+    match strategy_type {
+        StrategyType::Conservative => Box::new(TokenAnalyzer::new(5.0, 10.0, 50, 0.3)),
+        StrategyType::UltraEarlySniper => Box::new(UltraEarlySniper::new()),
+        StrategyType::MomentumScalper => Box::new(MomentumScalper::new()),
+        StrategyType::GraduationAnticipator => Box::new(GraduationAnticipator::new()),
     }
 }
 

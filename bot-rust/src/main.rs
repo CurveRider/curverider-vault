@@ -8,7 +8,7 @@ mod trader;
 
 use error::Result;
 use types::{BotConfig, SignalType};
-use analyzer::TokenAnalyzer;
+use analyzer::{TradingStrategy, create_strategy};
 use scanner::PumpFunScanner;
 use trader::Trader;
 
@@ -37,17 +37,23 @@ async fn main() -> anyhow::Result<()> {
     info!("✅ Configuration loaded");
     info!("📊 Wallet: {}", config.wallet_keypair.pubkey());
     info!("💰 Max position size: {} SOL", config.max_position_size_sol);
-    info!("🎯 Take profit: {}x", config.take_profit_multiplier);
-    info!("🛑 Stop loss: {}%", config.stop_loss_percentage * 100.0);
+
+    // Initialize strategy
+    let strategy = create_strategy(config.strategy_type);
+    let exit_params = strategy.get_exit_params();
+
+    info!("🎲 Strategy: {}", strategy.name());
+    info!("🎯 Take profit: {}x", exit_params.take_profit_multiplier);
+    info!("🛑 Stop loss: {:.0}%", exit_params.stop_loss_percentage * 100.0);
+    info!("⏱️  Position timeout: {}s", exit_params.position_timeout_seconds);
+    if exit_params.use_trailing_stop {
+        info!("📉 Trailing stop: Activate at +{:.0}%, trail by {:.0}%",
+            exit_params.trailing_activation_pct * 100.0,
+            exit_params.trailing_distance_pct * 100.0);
+    }
 
     // Initialize components
     let scanner = PumpFunScanner::new(&config);
-    let analyzer = TokenAnalyzer::new(
-        config.min_liquidity_sol,
-        config.volume_threshold_sol,
-        config.holder_count_min,
-        0.3, // max holder concentration
-    );
     let mut trader = Trader::new(&config);
 
     info!("✅ Bot initialized successfully");
@@ -57,8 +63,8 @@ async fn main() -> anyhow::Result<()> {
     let mut iteration = 0;
     loop {
         iteration += 1;
-        
-        match run_trading_cycle(&scanner, &analyzer, &mut trader, &config).await {
+
+        match run_trading_cycle(&scanner, strategy.as_ref(), &mut trader, &config).await {
             Ok(_) => {
                 debug!("Iteration {} completed successfully", iteration);
             }
@@ -85,7 +91,7 @@ async fn main() -> anyhow::Result<()> {
 /// Run a single trading cycle
 async fn run_trading_cycle(
     scanner: &PumpFunScanner,
-    analyzer: &TokenAnalyzer,
+    strategy: &dyn TradingStrategy,
     trader: &mut Trader,
     config: &BotConfig,
 ) -> Result<()> {
@@ -115,8 +121,8 @@ async fn run_trading_cycle(
             }
         };
 
-        // Analyze
-        let signal = match analyzer.analyze(&metrics) {
+        // Analyze using selected strategy
+        let signal = match strategy.analyze(&metrics) {
             Ok(s) => s,
             Err(e) => {
                 warn!("Failed to analyze {}: {}", mint, e);
