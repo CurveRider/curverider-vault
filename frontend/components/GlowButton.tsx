@@ -9,14 +9,16 @@ interface GlowButtonProps {
   onClick?: () => void;
   variant?: 'primary' | 'secondary';
   className?: string;
+  disabled?: boolean;
 }
 
-export default function GlowButton({ 
-  children, 
-  href, 
-  onClick, 
+export default function GlowButton({
+  children,
+  href,
+  onClick,
   variant = 'primary',
-  className = '' 
+  className = '',
+  disabled = false
 }: GlowButtonProps) {
   const buttonRef = useRef<HTMLAnchorElement | HTMLButtonElement>(null);
   const glowRef = useRef<HTMLDivElement>(null);
@@ -53,11 +55,13 @@ export default function GlowButton({
 
   const baseClasses = `
     relative px-8 py-4 rounded-xl font-bold text-lg overflow-hidden
-    transition-all duration-300 transform hover:scale-105
+    transition-all duration-300 transform
+    ${!disabled && 'hover:scale-105 cursor-pointer'}
+    ${disabled && 'opacity-50 cursor-not-allowed'}
     ${className}
   `;
 
-  const variantClasses = variant === 'primary' 
+  const variantClasses = variant === 'primary'
     ? 'bg-gradient-to-r from-[#0066FF] to-[#00F0FF] text-white shadow-[0_0_30px_rgba(0,240,255,0.5)]'
     : 'glass border-2 border-[#00F0FF] text-white shadow-[0_0_20px_rgba(0,240,255,0.3)]';
 
@@ -105,7 +109,7 @@ export default function GlowButton({
   }
 
   return (
-    <button {...commonProps} onClick={onClick}>
+    <button {...commonProps} onClick={onClick} disabled={disabled}>
       {content}
     </button>
   );
