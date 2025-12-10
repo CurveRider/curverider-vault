@@ -61,6 +61,7 @@ impl PumpFunScanner {
                 scan_interval_ms: config.scan_interval_ms,
                 volume_threshold_sol: config.volume_threshold_sol,
                 holder_count_min: config.holder_count_min,
+                strategy_type: config.strategy_type,
             },
         }
     }

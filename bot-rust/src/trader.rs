@@ -3,16 +3,12 @@ use crate::error::{Result, BotError};
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::{
     pubkey::Pubkey,
-    signature::{Keypair, Signer},
+    signature::Signer,
     transaction::Transaction,
-    instruction::Instruction,
     system_instruction,
     commitment_config::CommitmentConfig,
 };
-use spl_token::instruction as token_instruction;
-use spl_associated_token_account::instruction as associated_token_instruction;
-use tracing::{info, warn, error, debug};
-use std::str::FromStr;
+use tracing::{info, warn};
 
 pub struct Trader {
     rpc_client: RpcClient,
@@ -45,6 +41,7 @@ impl Trader {
                 scan_interval_ms: config.scan_interval_ms,
                 volume_threshold_sol: config.volume_threshold_sol,
                 holder_count_min: config.holder_count_min,
+                strategy_type: config.strategy_type,
             },
             positions: Vec::new(),
         }
@@ -210,7 +207,7 @@ impl Trader {
     /// Build buy transaction for pump.fun
     async fn build_buy_transaction(
         &self,
-        token_mint: &Pubkey,
+        _token_mint: &Pubkey,
         token_account: &Pubkey,
         sol_amount: f64,
     ) -> Result<Transaction> {
@@ -243,7 +240,7 @@ impl Trader {
     /// Build sell transaction for pump.fun
     async fn build_sell_transaction(
         &self,
-        token_mint: &Pubkey,
+        _token_mint: &Pubkey,
         token_account: &Pubkey,
         amount: u64,
     ) -> Result<Transaction> {
@@ -322,19 +319,19 @@ impl Trader {
     }
 
     /// Get token balance
-    fn get_token_balance(&self, token_account: &Pubkey) -> Result<u64> {
+    fn get_token_balance(&self, _token_account: &Pubkey) -> Result<u64> {
         // TODO: Implement actual token balance check
         Ok(0)
     }
 
     /// Get current token price
-    async fn get_token_price(&self, token_mint: &Pubkey) -> Result<f64> {
+    async fn get_token_price(&self, _token_mint: &Pubkey) -> Result<f64> {
         // TODO: Implement actual price fetch from bonding curve or DEX
         Ok(0.001)
     }
 
     /// Check if token graduated to DEX
-    async fn check_if_graduated(&self, token_mint: &Pubkey) -> Result<bool> {
+    async fn check_if_graduated(&self, _token_mint: &Pubkey) -> Result<bool> {
         // TODO: Check if bonding curve is complete and token moved to Raydium
         Ok(false)
     }

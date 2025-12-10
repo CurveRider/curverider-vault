@@ -1,6 +1,6 @@
 use crate::types::{TokenMetrics, TradingSignal, SignalType, StrategyType, StrategyExitParams};
 use crate::error::Result;
-use tracing::{info, warn, debug};
+use tracing::{info, warn};
 
 /// Trading Strategy Trait - All strategies must implement this
 pub trait TradingStrategy: Send + Sync {
