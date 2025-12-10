@@ -32,6 +32,9 @@ pub struct BotConfig {
 
     // Strategy Selection
     pub strategy_type: StrategyType,
+
+    // Dry run mode - no real trades, mock API responses
+    pub dry_run: bool,
 }
 
 impl BotConfig {
@@ -114,6 +117,16 @@ impl BotConfig {
             strategy_type: std::env::var("STRATEGY_TYPE")
                 .unwrap_or_else(|_| "conservative".to_string())
                 .parse()?,
+
+            // Enable dry run mode on devnet by default
+            dry_run: std::env::var("DRY_RUN")
+                .map(|v| v == "true" || v == "1")
+                .unwrap_or_else(|_| {
+                    // Auto-enable dry run if using devnet
+                    std::env::var("RPC_URL")
+                        .map(|url| url.contains("devnet"))
+                        .unwrap_or(true)
+                }),
         })
     }
 }

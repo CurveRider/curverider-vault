@@ -32,7 +32,7 @@ struct PumpFunResponse {
 pub struct PumpFunScanner {
     client: Client,
     api_url: String,
-    config: BotConfig,
+    dry_run: bool,
 }
 
 impl PumpFunScanner {
@@ -45,31 +45,63 @@ impl PumpFunScanner {
         Self {
             client,
             api_url: config.pump_fun_api_url.clone(),
-            config: BotConfig {
-                rpc_url: config.rpc_url.clone(),
-                rpc_ws_url: config.rpc_ws_url.clone(),
-                wallet_keypair: solana_sdk::signature::Keypair::from_bytes(&config.wallet_keypair.to_bytes()).unwrap(),
-                min_liquidity_sol: config.min_liquidity_sol,
-                max_position_size_sol: config.max_position_size_sol,
-                take_profit_multiplier: config.take_profit_multiplier,
-                stop_loss_percentage: config.stop_loss_percentage,
-                pump_fun_api_url: config.pump_fun_api_url.clone(),
-                raydium_amm_program: config.raydium_amm_program,
-                max_slippage_bps: config.max_slippage_bps,
-                max_concurrent_positions: config.max_concurrent_positions,
-                position_timeout_seconds: config.position_timeout_seconds,
-                scan_interval_ms: config.scan_interval_ms,
-                volume_threshold_sol: config.volume_threshold_sol,
-                holder_count_min: config.holder_count_min,
-                strategy_type: config.strategy_type,
-            },
+            dry_run: config.dry_run,
+        }
+    }
+
+    /// Generate mock tokens for dry run mode
+    fn generate_mock_tokens(&self) -> Vec<String> {
+        vec![
+            "MockToken1111111111111111111111111111111111".to_string(),
+            "MockToken2222222222222222222222222222222222".to_string(),
+            "MockToken3333333333333333333333333333333333".to_string(),
+        ]
+    }
+
+    /// Generate mock metrics for dry run mode
+    fn generate_mock_metrics(&self, mint: &str) -> TokenMetrics {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+
+        TokenMetrics {
+            mint: mint.to_string(),
+            name: format!("Mock Token {}", &mint[..8]),
+            symbol: format!("MOCK{}", &mint[..4]),
+            volume_5m: rng.gen_range(1.0..50.0),
+            volume_1h: rng.gen_range(10.0..200.0),
+            volume_24h: rng.gen_range(100.0..1000.0),
+            current_price: rng.gen_range(0.0001..0.01),
+            price_change_5m: rng.gen_range(-10.0..20.0),
+            price_change_1h: rng.gen_range(-20.0..50.0),
+            liquidity_sol: rng.gen_range(5.0..50.0),
+            liquidity_usd: rng.gen_range(500.0..5000.0),
+            holder_count: rng.gen_range(20..200),
+            holder_concentration: rng.gen_range(0.1..0.5),
+            unique_buyers_5m: rng.gen_range(5..50),
+            unique_sellers_5m: rng.gen_range(2..20),
+            market_cap: rng.gen_range(10000.0..100000.0),
+            fully_diluted_valuation: rng.gen_range(50000.0..500000.0),
+            bonding_curve_progress: rng.gen_range(10.0..90.0),
+            is_graduated: false,
+            created_at: chrono::Utc::now().timestamp() - rng.gen_range(60..3600),
+            time_since_creation: rng.gen_range(60..3600),
+            buy_pressure: rng.gen_range(0.5..2.0),
+            sell_pressure: rng.gen_range(0.3..1.5),
+            volatility_score: rng.gen_range(0.1..0.8),
         }
     }
 
     /// Scan for new tokens on pump.fun
     pub async fn scan_new_tokens(&self) -> Result<Vec<String>> {
+        if self.dry_run {
+            debug!("[DRY RUN] Returning mock tokens");
+            let mints = self.generate_mock_tokens();
+            info!("[DRY RUN] Found {} mock tokens", mints.len());
+            return Ok(mints);
+        }
+
         let url = format!("{}/tokens/latest", self.api_url);
-        
+
         debug!("Scanning pump.fun for new tokens...");
 
         let response = self.client
@@ -87,8 +119,15 @@ impl PumpFunScanner {
 
     /// Scan for trending/popular tokens
     pub async fn scan_trending_tokens(&self, limit: usize) -> Result<Vec<String>> {
+        if self.dry_run {
+            debug!("[DRY RUN] Returning mock trending tokens");
+            let mints = self.generate_mock_tokens();
+            info!("[DRY RUN] Found {} mock trending tokens", mints.len());
+            return Ok(mints);
+        }
+
         let url = format!("{}/tokens/trending?limit={}", self.api_url, limit);
-        
+
         debug!("Scanning trending tokens on pump.fun...");
 
         let response = self.client
@@ -106,8 +145,13 @@ impl PumpFunScanner {
 
     /// Get detailed metrics for a specific token
     pub async fn get_token_metrics(&self, mint: &str) -> Result<TokenMetrics> {
+        if self.dry_run {
+            debug!("[DRY RUN] Returning mock metrics for {}", mint);
+            return Ok(self.generate_mock_metrics(mint));
+        }
+
         let url = format!("{}/tokens/{}", self.api_url, mint);
-        
+
         debug!("Fetching metrics for token {}", mint);
 
         // Fetch basic token data

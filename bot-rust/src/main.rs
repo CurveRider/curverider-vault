@@ -30,13 +30,18 @@ async fn main() -> anyhow::Result<()> {
 
     info!("🚀 Starting Curverider Vault Bot");
     info!("⚡ High-Performance Rust Trading Bot for pump.fun");
-    info!("═══════════════════════════════════════════════");
+    info!("═══════════════════════════════════════════════════");
 
     // Load configuration
     let config = BotConfig::from_env()?;
     info!("✅ Configuration loaded");
     info!("📊 Wallet: {}", config.wallet_keypair.pubkey());
     info!("💰 Max position size: {} SOL", config.max_position_size_sol);
+    info!("🌐 RPC: {}", config.rpc_url);
+    if config.dry_run {
+        info!("🧪 DRY RUN MODE - No real trades will be executed");
+        info!("   (Using mock data instead of pump.fun API)");
+    }
 
     // Initialize strategy
     let strategy = create_strategy(config.strategy_type);
