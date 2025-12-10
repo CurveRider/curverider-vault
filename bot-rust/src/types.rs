@@ -62,7 +62,9 @@ impl BotConfig {
             ));
         };
 
-        let raydium_program_str = std::env::var("RAYDIUM_AMM_PROGRAM")?;
+        // Raydium AMM Program - defaults to mainnet address (not fully implemented yet)
+        let raydium_program_str = std::env::var("RAYDIUM_AMM_PROGRAM")
+            .unwrap_or_else(|_| "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8".to_string());
         let raydium_amm_program = Pubkey::from_str(&raydium_program_str)?;
 
         Ok(Self {
