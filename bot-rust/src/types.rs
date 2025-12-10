@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use solana_sdk::pubkey::Pubkey;
+use solana_sdk::signature::Keypair;
 use std::str::FromStr;
 
 #[derive(Debug)]
@@ -36,23 +37,37 @@ pub struct BotConfig {
 impl BotConfig {
     pub fn from_env() -> anyhow::Result<Self> {
         dotenv::from_filename("bot-rust/.env").ok();
-        println!("[DEBUG] Environment variables loaded:");
-        for (key, value) in std::env::vars() {
-            println!("[DEBUG] {}={}", key, value);
-        }
 
-        let keypair_path = std::env::var("WALLET_KEYPAIR")?;
-        let wallet_keypair = solana_sdk::signature::read_keypair_file(&keypair_path)
-            .map_err(|e| anyhow::anyhow!("Failed to read keypair file: {}", e))?;
+        // Load wallet keypair - supports both file path and direct private key
+        let wallet_keypair = if let Ok(private_key) = std::env::var("WALLET_PRIVATE_KEY") {
+            // Try base58 encoded private key first
+            if let Ok(keypair) = Keypair::from_base58_string(&private_key) {
+                keypair
+            } else {
+                // Try JSON array format (e.g., from solana-keygen output)
+                let bytes: Vec<u8> = serde_json::from_str(&private_key)
+                    .map_err(|e| anyhow::anyhow!("Invalid WALLET_PRIVATE_KEY format: {}", e))?;
+                Keypair::from_bytes(&bytes)
+                    .map_err(|e| anyhow::anyhow!("Invalid keypair bytes: {}", e))?
+            }
+        } else if let Ok(keypair_path) = std::env::var("WALLET_KEYPAIR") {
+            // Fall back to file path
+            solana_sdk::signature::read_keypair_file(&keypair_path)
+                .map_err(|e| anyhow::anyhow!("Failed to read keypair file: {}", e))?
+        } else {
+            return Err(anyhow::anyhow!(
+                "Either WALLET_PRIVATE_KEY or WALLET_KEYPAIR must be set"
+            ));
+        };
 
         let raydium_program_str = std::env::var("RAYDIUM_AMM_PROGRAM")?;
         let raydium_amm_program = Pubkey::from_str(&raydium_program_str)?;
 
         Ok(Self {
             rpc_url: std::env::var("RPC_URL")
-                .unwrap_or_else(|_| "https://api.mainnet-beta.solana.com".to_string()),
+                .unwrap_or_else(|_| "https://api.devnet.solana.com".to_string()),
             rpc_ws_url: std::env::var("RPC_WS_URL")
-                .unwrap_or_else(|_| "wss://api.mainnet-beta.solana.com".to_string()),
+                .unwrap_or_else(|_| "wss://api.devnet.solana.com".to_string()),
             wallet_keypair,
 
             min_liquidity_sol: std::env::var("MIN_LIQUIDITY_SOL")
