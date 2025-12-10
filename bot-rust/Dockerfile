@@ -12,10 +12,13 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy manifests
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml ./
 
 # Copy source code
 COPY src ./src
+
+# Generate Cargo.lock (will use existing dependencies from Cargo.toml)
+RUN cargo fetch
 
 # Build for release
 RUN cargo build --release
