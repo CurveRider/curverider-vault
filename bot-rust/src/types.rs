@@ -40,15 +40,17 @@ impl BotConfig {
 
         // Load wallet keypair - supports both file path and direct private key
         let wallet_keypair = if let Ok(private_key) = std::env::var("WALLET_PRIVATE_KEY") {
-            // Try base58 encoded private key first
-            if let Ok(keypair) = Keypair::from_base58_string(&private_key) {
-                keypair
-            } else {
-                // Try JSON array format (e.g., from solana-keygen output)
-                let bytes: Vec<u8> = serde_json::from_str(&private_key)
-                    .map_err(|e| anyhow::anyhow!("Invalid WALLET_PRIVATE_KEY format: {}", e))?;
+            // Try JSON array format first (e.g., from solana-keygen output)
+            if let Ok(bytes) = serde_json::from_str::<Vec<u8>>(&private_key) {
                 Keypair::from_bytes(&bytes)
                     .map_err(|e| anyhow::anyhow!("Invalid keypair bytes: {}", e))?
+            } else {
+                // Try base58 encoded private key (from Phantom)
+                let decoded = bs58::decode(&private_key)
+                    .into_vec()
+                    .map_err(|e| anyhow::anyhow!("Invalid base58 private key: {}", e))?;
+                Keypair::from_bytes(&decoded)
+                    .map_err(|e| anyhow::anyhow!("Invalid keypair from base58: {}", e))?
             }
         } else if let Ok(keypair_path) = std::env::var("WALLET_KEYPAIR") {
             // Fall back to file path
