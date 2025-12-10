@@ -42,6 +42,7 @@ impl Trader {
                 volume_threshold_sol: config.volume_threshold_sol,
                 holder_count_min: config.holder_count_min,
                 strategy_type: config.strategy_type,
+                dry_run: config.dry_run,
             },
             positions: Vec::new(),
         }
