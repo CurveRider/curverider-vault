@@ -70,9 +70,11 @@ pub mod curverider_vault {
         Ok(())
     }
 
-    /// Create a delegation account allowing bot to trade on user's behalf
+    /// Create a delegation account (vault) allowing bot to trade on user's behalf
+    /// Users can create multiple vaults with different strategies using vault_index
     pub fn create_delegation(
         ctx: Context<CreateDelegation>,
+        vault_index: u8,
         strategy: u8,
         max_position_size_sol: u64,
         max_concurrent_trades: u8,
@@ -83,6 +85,7 @@ pub mod curverider_vault {
         let delegation = &mut ctx.accounts.delegation;
 
         // Validate inputs
+        require!(vault_index < MAX_VAULTS_PER_USER, VaultError::MaxVaultsReached);
         require!(max_position_size_sol > 0, VaultError::InvalidAmount);
         require!(
             max_position_size_sol <= 100 * LAMPORTS_PER_SOL, // Max 100 SOL per position
@@ -96,6 +99,7 @@ pub mod curverider_vault {
 
         delegation.user = ctx.accounts.user.key();
         delegation.bot_authority = ctx.accounts.bot_authority.key();
+        delegation.vault_index = vault_index;
         delegation.strategy = strategy;
         delegation.max_position_size_sol = max_position_size_sol;
         delegation.max_concurrent_trades = max_concurrent_trades;
@@ -117,6 +121,7 @@ pub mod curverider_vault {
         emit!(DelegationCreated {
             user: delegation.user,
             bot_authority: delegation.bot_authority,
+            vault_index,
             strategy,
             max_position_size_sol,
             max_concurrent_trades,
@@ -129,6 +134,7 @@ pub mod curverider_vault {
     /// Update delegation settings
     pub fn update_delegation(
         ctx: Context<UpdateDelegation>,
+        vault_index: u8,
         strategy: Option<u8>,
         max_position_size_sol: Option<u64>,
         max_concurrent_trades: Option<u8>,
@@ -163,6 +169,7 @@ pub mod curverider_vault {
 
         emit!(DelegationUpdated {
             user: delegation.user,
+            vault_index: delegation.vault_index,
             strategy: delegation.strategy,
             max_position_size_sol: delegation.max_position_size_sol,
             max_concurrent_trades: delegation.max_concurrent_trades,
@@ -176,6 +183,7 @@ pub mod curverider_vault {
     /// Change bot authority (for key rotation)
     pub fn change_bot_authority(
         ctx: Context<ChangeBotAuthority>,
+        vault_index: u8,
         new_bot_authority: Pubkey,
     ) -> Result<()> {
         let delegation = &mut ctx.accounts.delegation;
@@ -191,6 +199,7 @@ pub mod curverider_vault {
 
         emit!(BotAuthorityChanged {
             user: delegation.user,
+            vault_index: delegation.vault_index,
             old_authority,
             new_authority: new_bot_authority,
             timestamp: Clock::get()?.unix_timestamp,
@@ -200,13 +209,14 @@ pub mod curverider_vault {
     }
 
     /// Revoke delegation - immediately stops bot from trading
-    pub fn revoke_delegation(ctx: Context<RevokeDelegation>) -> Result<()> {
+    pub fn revoke_delegation(ctx: Context<RevokeDelegation>, vault_index: u8) -> Result<()> {
         let delegation = &mut ctx.accounts.delegation;
 
         delegation.is_active = false;
 
         emit!(DelegationRevoked {
             user: delegation.user,
+            vault_index: delegation.vault_index,
             active_trades_remaining: delegation.active_trades,
             timestamp: Clock::get()?.unix_timestamp,
         });
@@ -215,7 +225,7 @@ pub mod curverider_vault {
     }
 
     /// Close delegation account and recover rent (only if no active trades)
-    pub fn close_delegation(ctx: Context<CloseDelegation>) -> Result<()> {
+    pub fn close_delegation(ctx: Context<CloseDelegation>, vault_index: u8) -> Result<()> {
         let delegation = &ctx.accounts.delegation;
 
         require!(
@@ -229,6 +239,7 @@ pub mod curverider_vault {
 
         emit!(DelegationClosed {
             user: delegation.user,
+            vault_index: delegation.vault_index,
             total_trades: delegation.total_trades,
             total_pnl: delegation.total_pnl,
             timestamp: Clock::get()?.unix_timestamp,
@@ -397,6 +408,7 @@ pub mod curverider_vault {
 // ============================================================================
 
 const LAMPORTS_PER_SOL: u64 = 1_000_000_000;
+const MAX_VAULTS_PER_USER: u8 = 10; // Users can have up to 10 vaults (e.g., one per strategy + extras)
 
 // ============================================================================
 // Account Structures
@@ -424,6 +436,8 @@ pub struct DelegationAccount {
     pub user: Pubkey,
     /// Bot's authority public key
     pub bot_authority: Pubkey,
+    /// Vault index (0-9) - allows multiple vaults per user
+    pub vault_index: u8,
     /// Selected strategy (0-3)
     pub strategy: u8,
     /// Maximum SOL per position (in lamports)
@@ -528,6 +542,7 @@ pub struct EmergencyPause<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(vault_index: u8)]
 pub struct CreateDelegation<'info> {
     #[account(
         mut,
@@ -540,7 +555,7 @@ pub struct CreateDelegation<'info> {
         init,
         payer = user,
         space = 8 + std::mem::size_of::<DelegationAccount>(),
-        seeds = [b"delegation", user.key().as_ref()],
+        seeds = [b"delegation", user.key().as_ref(), &[vault_index]],
         bump
     )]
     pub delegation: Account<'info, DelegationAccount>,
@@ -555,12 +570,14 @@ pub struct CreateDelegation<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(vault_index: u8)]
 pub struct UpdateDelegation<'info> {
     #[account(
         mut,
-        seeds = [b"delegation", user.key().as_ref()],
+        seeds = [b"delegation", user.key().as_ref(), &[vault_index]],
         bump = delegation.bump,
-        has_one = user
+        has_one = user,
+        constraint = delegation.vault_index == vault_index
     )]
     pub delegation: Account<'info, DelegationAccount>,
 
@@ -568,12 +585,14 @@ pub struct UpdateDelegation<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(vault_index: u8)]
 pub struct ChangeBotAuthority<'info> {
     #[account(
         mut,
-        seeds = [b"delegation", user.key().as_ref()],
+        seeds = [b"delegation", user.key().as_ref(), &[vault_index]],
         bump = delegation.bump,
-        has_one = user
+        has_one = user,
+        constraint = delegation.vault_index == vault_index
     )]
     pub delegation: Account<'info, DelegationAccount>,
 
@@ -581,12 +600,14 @@ pub struct ChangeBotAuthority<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(vault_index: u8)]
 pub struct RevokeDelegation<'info> {
     #[account(
         mut,
-        seeds = [b"delegation", user.key().as_ref()],
+        seeds = [b"delegation", user.key().as_ref(), &[vault_index]],
         bump = delegation.bump,
-        has_one = user
+        has_one = user,
+        constraint = delegation.vault_index == vault_index
     )]
     pub delegation: Account<'info, DelegationAccount>,
 
@@ -594,6 +615,7 @@ pub struct RevokeDelegation<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(vault_index: u8)]
 pub struct CloseDelegation<'info> {
     #[account(
         mut,
@@ -604,9 +626,10 @@ pub struct CloseDelegation<'info> {
 
     #[account(
         mut,
-        seeds = [b"delegation", user.key().as_ref()],
+        seeds = [b"delegation", user.key().as_ref(), &[vault_index]],
         bump = delegation.bump,
         has_one = user,
+        constraint = delegation.vault_index == vault_index,
         close = user
     )]
     pub delegation: Account<'info, DelegationAccount>,
@@ -625,7 +648,7 @@ pub struct OpenPosition<'info> {
 
     #[account(
         mut,
-        seeds = [b"delegation", delegation.user.as_ref()],
+        seeds = [b"delegation", delegation.user.as_ref(), &[delegation.vault_index]],
         bump = delegation.bump,
         has_one = bot_authority
     )]
@@ -657,7 +680,7 @@ pub struct OpenPosition<'info> {
 pub struct ClosePosition<'info> {
     #[account(
         mut,
-        seeds = [b"delegation", delegation.user.as_ref()],
+        seeds = [b"delegation", delegation.user.as_ref(), &[delegation.vault_index]],
         bump = delegation.bump,
         has_one = bot_authority
     )]
@@ -723,6 +746,7 @@ pub struct EmergencyResumed {
 pub struct DelegationCreated {
     pub user: Pubkey,
     pub bot_authority: Pubkey,
+    pub vault_index: u8,
     pub strategy: u8,
     pub max_position_size_sol: u64,
     pub max_concurrent_trades: u8,
@@ -732,6 +756,7 @@ pub struct DelegationCreated {
 #[event]
 pub struct DelegationUpdated {
     pub user: Pubkey,
+    pub vault_index: u8,
     pub strategy: u8,
     pub max_position_size_sol: u64,
     pub max_concurrent_trades: u8,
@@ -742,6 +767,7 @@ pub struct DelegationUpdated {
 #[event]
 pub struct BotAuthorityChanged {
     pub user: Pubkey,
+    pub vault_index: u8,
     pub old_authority: Pubkey,
     pub new_authority: Pubkey,
     pub timestamp: i64,
@@ -750,6 +776,7 @@ pub struct BotAuthorityChanged {
 #[event]
 pub struct DelegationRevoked {
     pub user: Pubkey,
+    pub vault_index: u8,
     pub active_trades_remaining: u8,
     pub timestamp: i64,
 }
@@ -757,6 +784,7 @@ pub struct DelegationRevoked {
 #[event]
 pub struct DelegationClosed {
     pub user: Pubkey,
+    pub vault_index: u8,
     pub total_trades: u64,
     pub total_pnl: i64,
     pub timestamp: i64,
@@ -804,6 +832,8 @@ pub enum VaultError {
     DelegationNotActive,
     #[msg("Maximum concurrent trades reached")]
     MaxTradesReached,
+    #[msg("Maximum vaults per user reached (10)")]
+    MaxVaultsReached,
     #[msg("Position size exceeds maximum allowed")]
     PositionTooLarge,
     #[msg("Insufficient funds in user wallet")]
